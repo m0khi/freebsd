@@ -4,6 +4,7 @@
 .include <src.opts.mk>
 
 SUBDIR=	adduser \
+	asl \
 	arp \
 	binmiscctl \
 	bsdconfig \
@@ -38,7 +39,6 @@ SUBDIR=	adduser \
 	iostat \
 	iovctl \
 	kldxref \
-	mailwrapper \
 	makefs \
 	memcontrol \
 	mergemaster \
@@ -58,6 +58,7 @@ SUBDIR=	adduser \
 	nfsuserd \
 	nmtree \
 	nologin \
+	notifyd \
 	pciconf \
 	periodic \
 	powerd \
@@ -183,11 +184,6 @@ SUBDIR.${MK_QUOTAS}+=	quotaon
 SUBDIR.${MK_QUOTAS}+=	repquota
 SUBDIR.${MK_RCMDS}+=	rwhod
 SUBDIR.${MK_RCS}+=	etcupdate
-SUBDIR.${MK_SENDMAIL}+=	editmap
-SUBDIR.${MK_SENDMAIL}+=	mailstats
-SUBDIR.${MK_SENDMAIL}+=	makemap
-SUBDIR.${MK_SENDMAIL}+=	praliases
-SUBDIR.${MK_SENDMAIL}+=	sendmail
 SUBDIR.${MK_TCP_WRAPPERS}+=	tcpdchk
 SUBDIR.${MK_TCP_WRAPPERS}+=	tcpdmatch
 SUBDIR.${MK_TIMED}+=	timed

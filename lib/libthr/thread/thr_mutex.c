@@ -34,9 +34,10 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD$");
 
 #include <stdbool.h>
 #include "namespace.h"
@@ -50,6 +51,9 @@
 #include "un-namespace.h"
 
 #include "thr_private.h"
+
+_Static_assert(sizeof(struct pthread_mutex) <= PAGE_SIZE,
+    "pthread_mutex is too large for off-page");
 
 /*
  * For adaptive mutexes, how many times to spin doing trylock2
@@ -440,8 +444,13 @@ enqueue_mutex(struct pthread *curthread, struct pthread_mutex *m)
 	/* Add to the list of owned mutexes: */
 	mutex_assert_not_owned(m);
 	qidx = mutex_qidx(m);
-	TAILQ_INSERT_TAIL(&curthread->mq[qidx], m, m_qe);
-	if (!is_pshared_mutex(m))
+	if (TAILQ_EMPTY(&curthread->mq[qidx]))
+		TAILQ_INSERT_HEAD(&curthread->mq[qidx], m, m_qe);
+	else
+		TAILQ_INSERT_TAIL(&curthread->mq[qidx], m, m_qe);
+	if (!is_pshared_mutex(m) && TAILQ_EMPTY(&curthread->mq[qidx + 1]))
+		TAILQ_INSERT_HEAD(&curthread->mq[qidx + 1], m, m_pqe);
+	else if (!is_pshared_mutex(m))
 		TAILQ_INSERT_TAIL(&curthread->mq[qidx + 1], m, m_pqe);
 }
 
@@ -472,7 +481,8 @@ check_and_init_mutex(pthread_mutex_t *mutex, struct pthread_mutex **m)
 		*m = __thr_pshared_offpage(mutex, 0);
 		if (*m == NULL)
 			ret = EINVAL;
-		shared_mutex_init(*m, NULL);
+		else
+			shared_mutex_init(*m, NULL);
 	} else if (__predict_false(*m <= THR_MUTEX_DESTROYED)) {
 		if (*m == THR_MUTEX_DESTROYED) {
 			ret = EINVAL;

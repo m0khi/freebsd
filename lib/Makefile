@@ -24,6 +24,7 @@ SUBDIR_ORDERED=	csu \
 SUBDIR=	${SUBDIR_ORDERED} \
 	.WAIT \
 	libalias \
+	libasl \
 	libarchive \
 	${_libatm} \
 	libauditd \
@@ -43,6 +44,7 @@ SUBDIR=	${SUBDIR_ORDERED} \
 	libdevctl \
 	libdevinfo \
 	libdevstat \
+	libdispatch \
 	libdpv \
 	libdwarf \
 	libedit \
@@ -59,14 +61,16 @@ SUBDIR=	${SUBDIR_ORDERED} \
 	${_libiconv_modules} \
 	libipsec \
 	libjail \
+	libjansson \
 	libkiconv \
 	libkvm \
+	liblaunch \
 	${_libldns} \
 	liblzma \
 	${_libmagic} \
+	libmach \
 	libmemstat \
 	libmd \
-	${_libmilter} \
 	${_libmp} \
 	libmt \
 	${_libnandfs} \
@@ -74,9 +78,11 @@ SUBDIR=	${SUBDIR_ORDERED} \
 	libnetbsd \
 	${_libnetgraph} \
 	${_libngatm} \
+	libnotify \
 	libnv \
 	libopenbsd \
 	libopie \
+	libosxsupport \
 	libpam \
 	libpcap \
 	${_libpe} \
@@ -98,6 +104,7 @@ SUBDIR=	${SUBDIR_ORDERED} \
 	libstand \
 	libstdbuf \
 	libstdthreads \
+	libSystem \
 	libsysdecode \
 	libtacplus \
 	${_libtelnet} \
@@ -115,6 +122,7 @@ SUBDIR=	${SUBDIR_ORDERED} \
 	${_libvmmapi} \
 	libwrap \
 	libxo \
+	libxpc \
 	liby \
 	${_libypclnt} \
 	libz \
@@ -148,6 +156,7 @@ SUBDIR_DEPEND_libpjdlog= libutil
 SUBDIR_DEPEND_libprocstat= libkvm libutil
 SUBDIR_DEPEND_libradius= libmd
 SUBDIR_DEPEND_libsmb= libkiconv
+SUBDIR_DEPEND_libstdc++:= msun
 SUBDIR_DEPEND_libtacplus= libmd
 SUBDIR_DEPEND_libulog= libmd
 SUBDIR_DEPEND_libunbound= ${_libldns}
@@ -258,6 +267,7 @@ _libproc=	libproc
 _librtld_db=	librtld_db
 .endif
 
+
 .if ${MACHINE_CPUARCH} == "powerpc"
 _libproc=	libproc
 _librtld_db=	librtld_db
@@ -279,13 +289,6 @@ _libpmc=	libpmc
 
 .if ${MK_RADIUS_SUPPORT} != "no"
 _libradius=	libradius
-.endif
-
-.if ${MK_SENDMAIL} != "no"
-_libmilter=	libmilter
-_libsm=		libsm
-_libsmdb=	libsmdb
-_libsmutil=	libsmutil
 .endif
 
 .if ${MK_TELNET} != "no"

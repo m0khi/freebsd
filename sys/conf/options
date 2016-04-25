@@ -90,6 +90,7 @@ COMPAT_LINUXKPI	opt_compat.h
 COMPILING_LINT	opt_global.h
 CY_PCI_FASTINTR
 DEADLKRES	opt_watchdog.h
+DEVICE_NUMA
 EXT_RESOURCES	opt_global.h
 DIRECTIO
 FILEMON		opt_dontuse.h
@@ -222,6 +223,9 @@ P1003_1B_MQUEUE			opt_posix.h
 P1003_1B_SEMAPHORES		opt_posix.h
 _KPOSIX_PRIORITY_SCHEDULING	opt_posix.h
 
+# PThread WorkQueue Option
+THRWORKQ	opt_thrworkq.h
+
 # Do we want the config file compiled into the kernel?
 INCLUDE_CONFIG_FILE	opt_config.h
 
@@ -328,6 +332,7 @@ CAM_DEBUG_TARGET	opt_cam.h
 CAM_DEBUG_LUN		opt_cam.h
 CAM_DEBUG_FLAGS		opt_cam.h
 CAM_BOOT_DELAY		opt_cam.h
+CAM_NETFLIX_IOSCHED	opt_cam.h
 SCSI_DELAY		opt_scsi.h
 SCSI_NO_SENSE_STRINGS	opt_scsi.h
 SCSI_NO_OP_STRINGS	opt_scsi.h
@@ -603,6 +608,7 @@ VM_KMEM_SIZE		opt_vm.h
 VM_KMEM_SIZE_SCALE	opt_vm.h
 VM_KMEM_SIZE_MAX	opt_vm.h
 VM_NRESERVLEVEL		opt_vm.h
+VM_NUMA_ALLOC		opt_vm.h
 VM_LEVEL_0_ORDER	opt_vm.h
 NO_SWAPPING		opt_vm.h
 MALLOC_MAKE_FAILURES	opt_vm.h
@@ -801,6 +807,8 @@ KBD_MAXWAIT		opt_kbd.h
 KBD_RESETDELAY		opt_kbd.h
 KBDIO_DEBUG		opt_kbd.h
 
+KBDMUX_DFLT_KEYMAP	opt_kbdmux.h
+
 # options for the Atheros driver
 ATH_DEBUG		opt_ath.h
 ATH_TXBUF		opt_ath.h
@@ -964,5 +972,13 @@ RANDOM_LOADABLE	opt_global.h
 # the uma slab allocator.
 RANDOM_ENABLE_UMA	opt_global.h
 
+# Mach support options
+COMPAT_MACH_STATIC
+COMPAT_MACH_PORT_DEBUG opt_compat_mach.h
+
+
 # Intel em(4) driver
 EM_MULTIQUEUE	opt_em.h
+
+# stock VM without scaling improvements
+VM_LEGACY  		opt_global.h

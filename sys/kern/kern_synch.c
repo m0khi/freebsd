@@ -162,15 +162,7 @@ _sleep(void *ident, struct lock_object *lock, int priority,
 	else
 		class = NULL;
 
-	if (cold || SCHEDULER_STOPPED()) {
-		/*
-		 * During autoconfiguration, just return;
-		 * don't run any other threads or panic below,
-		 * in case this is the idle thread and already asleep.
-		 * XXX: this used to do "s = splhigh(); splx(safepri);
-		 * splx(s);" to give interrupts a chance, but there is
-		 * no way to give interrupts a chance now.
-		 */
+	if (SCHEDULER_STOPPED()) {
 		if (lock != NULL && priority & PDROP)
 			class->lc_unlock(lock);
 		return (0);
@@ -264,17 +256,8 @@ msleep_spin_sbt(void *ident, struct mtx *mtx, const char *wmesg,
 	KASSERT(p != NULL, ("msleep1"));
 	KASSERT(ident != NULL && TD_IS_RUNNING(td), ("msleep"));
 
-	if (cold || SCHEDULER_STOPPED()) {
-		/*
-		 * During autoconfiguration, just return;
-		 * don't run any other threads or panic below,
-		 * in case this is the idle thread and already asleep.
-		 * XXX: this used to do "s = splhigh(); splx(safepri);
-		 * splx(s);" to give interrupts a chance, but there is
-		 * no way to give interrupts a chance now.
-		 */
+	if (SCHEDULER_STOPPED())
 		return (0);
-	}
 
 	sleepq_lock(ident);
 	CTR5(KTR_PROC, "msleep_spin: thread %ld (pid %ld, %s) on %s (%p)",
@@ -446,6 +429,11 @@ mi_switch(int flags, struct thread *newtd)
 	SCHED_STAT_INC(sched_switch_stats[flags & SW_TYPE_MASK]);
 #endif
 	/*
+	 * Do the context switch callback before blocking.
+	 */
+	if (td->td_cswitchcb != NULL)
+		(*td->td_cswitchcb)(SWCB_BLOCK, td);
+	/*
 	 * Compute the amount of time during which the current
 	 * thread was running, and add that to its total so far.
 	 */
@@ -476,6 +464,11 @@ mi_switch(int flags, struct thread *newtd)
 	CTR4(KTR_PROC, "mi_switch: new thread %ld (td_sched %p, pid %ld, %s)",
 	    td->td_tid, td->td_sched, td->td_proc->p_pid, td->td_name);
 
+	/*
+	 * Do the context switch callback for unblocking.
+	 */
+	if (td->td_cswitchcb != NULL)
+		(*td->td_cswitchcb)(SWCB_UNBLOCK, td);
 	/* 
 	 * If the last thread was exiting, finish cleaning it up.
 	 */

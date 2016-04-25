@@ -557,7 +557,6 @@ arpresolve_addr(struct ifnet *ifp, int flags, const struct sockaddr *dst,
 	return (error);
 }
 
-
 /*
  * Lookups link header based on an IP address.
  * On input:
@@ -566,6 +565,7 @@ arpresolve_addr(struct ifnet *ifp, int flags, const struct sockaddr *dst,
  *    m is the mbuf. May be NULL if we don't have a packet.
  *    dst is the next hop,
  *    desten is the storage to put LL header.
+ *    flags returns lle entry flags.
  *    flags returns subset of lle flags: LLE_VALID | LLE_IFADDR
  *
  * On success, full/partial link header and flags are filled in and
@@ -578,7 +578,7 @@ int
 arpresolve(struct ifnet *ifp, int is_gw, struct mbuf *m,
 	const struct sockaddr *dst, u_char *desten, uint32_t *pflags)
 {
-	struct llentry *la = 0;
+	struct llentry *la = NULL;
 
 	if (pflags != NULL)
 		*pflags = 0;
@@ -611,6 +611,7 @@ arpresolve(struct ifnet *ifp, int is_gw, struct mbuf *m,
 			LLE_REQ_UNLOCK(la);
 		}
 		IF_AFDATA_RUNLOCK(ifp);
+
 		return (0);
 	}
 	IF_AFDATA_RUNLOCK(ifp);
@@ -1312,6 +1313,7 @@ arp_handle_ifllchange(struct ifnet *ifp)
 			arp_ifinit(ifp, ifa);
 	}
 }
+
 
 /*
  * A handler for interface link layer address change event.

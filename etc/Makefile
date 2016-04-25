@@ -3,17 +3,19 @@
 
 .include <src.opts.mk>
 
+FILESGROUPS=	FILES
+
+
+SUBDIR=	newsyslog.conf.d
+SUBDIR+= launchd.d
+SUBDIR+= bootstrap.d
+SUBDIR+= defaults.d
 # No need as it is empty and just causes rebuilds since this file does so much.
 UPDATE_DEPENDFILE=	no
 
-SUBDIR=	\
-	newsyslog.conf.d
 
-.if ${MK_SENDMAIL} != "no"
-SUBDIR+=sendmail
-.endif
-
-BIN1=	crontab \
+BIN1=	asl.conf \
+	crontab \
 	devd.conf \
 	devfs.conf \
 	ddb.conf \
@@ -82,7 +84,7 @@ BIN1+= apmd.conf
 .endif
 
 .if ${MK_AUTOFS} != "no"
-BIN1+= auto_master
+BIN1+=	auto_master
 .endif
 
 .if ${MK_FREEBSD_UPDATE} != "no"
@@ -134,10 +136,6 @@ BIN1+= portsnap.conf
 BIN1+= pf.os
 .endif
 
-.if ${MK_SENDMAIL} != "no"
-BIN1+=	rc.sendmail
-.endif
-
 .if ${MK_TCSH} != "no"
 BIN1+= csh.cshrc csh.login csh.logout
 .endif
@@ -147,7 +145,7 @@ BIN1+= regdomain.xml
 .endif
 
 # -rwxr-xr-x root:wheel, for the new cron root:wheel
-BIN2=	netstart pccard_ether rc.suspend rc.resume
+BIN2=	bootstrap netstart pccard_ether rc.suspend rc.resume
 
 MTREE=	BSD.debug.dist BSD.include.dist BSD.root.dist BSD.usr.dist BSD.var.dist
 .if ${MK_LIB32} != "no"
@@ -158,9 +156,6 @@ MTREE+=	BSD.libsoft.dist
 .endif
 .if ${MK_TESTS} != "no"
 MTREE+=	BSD.tests.dist
-.endif
-.if ${MK_SENDMAIL} != "no"
-MTREE+=	BSD.sendmail.dist
 .endif
 
 PPPCNF=	ppp.conf
@@ -250,6 +245,7 @@ distribution:
 	${_+_}cd ${.CURDIR}/defaults; ${MAKE} install
 	${_+_}cd ${.CURDIR}/devd; ${MAKE} install
 	${_+_}cd ${.CURDIR}/gss; ${MAKE} install
+	${_+_}cd ${.CURDIR}/launchd.d; ${MAKE} install
 .if ${MK_NTP} != "no"
 	${_+_}cd ${.CURDIR}/ntp; ${MAKE} install
 .endif
@@ -271,9 +267,6 @@ distribution:
 	if [ ! -e ${DESTDIR}/etc/unbound ]; then \
 		${INSTALL_SYMLINK} ../var/unbound ${DESTDIR}/etc/unbound; \
 	fi
-.endif
-.if ${MK_SENDMAIL} != "no"
-	${_+_}cd ${.CURDIR}/sendmail; ${MAKE} distribution
 .endif
 .if ${MK_OPENSSH} != "no"
 	cd ${.CURDIR}; ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 644 \
@@ -368,9 +361,6 @@ MTREES+=	mtree/BSD.libsoft.dist		/usr/lib/debug/usr
 .if ${MK_TESTS} != "no"
 MTREES+=	mtree/BSD.tests.dist		${TESTSBASE}
 MTREES+=	mtree/BSD.tests.dist		/usr/lib/debug/${TESTSBASE}
-.endif
-.if ${MK_SENDMAIL} != "no"
-MTREES+=	mtree/BSD.sendmail.dist		/
 .endif
 .for mtree in ${LOCAL_MTREE}
 MTREES+=	../${mtree}			/

@@ -64,29 +64,6 @@ NOSTDINC= -nostdinc
 
 INCLUDES= ${NOSTDINC} ${INCLMAGIC} -I. -I$S
 
-.if ${MK_FAST_DEPEND} == "no" && (make(depend) || make(kernel-depend))
-
-# This hack lets us use the ipfilter code without spamming a new
-# include path into contrib'ed source files.
-INCLUDES+= -I$S/contrib/ipfilter
-
-# ... and the same for ath
-INCLUDES+= -I$S/dev/ath -I$S/dev/ath/ath_hal -I$S/contrib/dev/ath/ath_hal
-
-# ... and the same for the NgATM stuff
-INCLUDES+= -I$S/contrib/ngatm
-
-# ... and the same for vchiq
-INCLUDES+= -I$S/contrib/vchiq
-
-# ... and the same for twa
-INCLUDES+= -I$S/dev/twa
-
-# ... and the same for cxgb and cxgbe
-INCLUDES+= -I$S/dev/cxgb -I$S/dev/cxgbe
-
-.endif
-
 CFLAGS=	${COPTFLAGS} ${DEBUG}
 CFLAGS+= ${INCLUDES} -D_KERNEL -DHAVE_KERNEL_OPTION_HEADERS -include opt_global.h
 CFLAGS_PARAM_INLINE_UNIT_GROWTH?=100
@@ -149,6 +126,11 @@ ZFS_CFLAGS=	-DBUILDING_ZFS -I$S/cddl/contrib/opensolaris/uts/common/fs/zfs -I$S/
 ZFS_ASM_CFLAGS= -x assembler-with-cpp -DLOCORE ${ZFS_CFLAGS}
 ZFS_C=		${CC} -c ${ZFS_CFLAGS} ${WERROR} ${PROF} ${.IMPSRC}
 ZFS_S=		${CC} -c ${ZFS_ASM_CFLAGS} ${WERROR} ${.IMPSRC}
+
+
+
+MACH_FLAGS= -I$S../include/apple -I$S/sys
+MACH_C = ${NORMAL_C} ${MACH_FLAGS}
 
 # Special flags for managing the compat compiles for DTrace
 DTRACE_CFLAGS=	-DBUILDING_DTRACE ${CDDL_CFLAGS} -I$S/cddl/dev/dtrace -I$S/cddl/dev/dtrace/${MACHINE_CPUARCH}

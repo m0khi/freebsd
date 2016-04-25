@@ -5,6 +5,16 @@
 
 /set type=dir uname=root gname=wheel mode=0755
 .
+    apple
+        sys
+            _pthread
+            ..
+            _types
+            ..
+        ..
+        uuid
+        ..
+    ..
     arpa
     ..
     atf-c
@@ -155,6 +165,8 @@
         wi
         ..
     ..
+    dispatch
+    ..
     edit
         readline
         ..
@@ -187,6 +199,8 @@
         4.2
         ..
     ..
+    gen
+    ..
     geom
         cache
         ..
@@ -218,6 +232,8 @@
         ..
         virstor
         ..
+    gen
+    ..
     ..
     gnu
         posix
@@ -243,6 +259,10 @@
     ..
     krb5
     ..
+    libkern
+        i386
+        ..
+    ..
     lib80211
     ..
     libmilter
@@ -251,8 +271,18 @@
     ..
     lzma
     ..
+    mach
+        device
+        ..
+        i386
+        ..
+    ..
+    mach_debug
+    ..
     machine
         pc
+        ..
+        mach
         ..
     ..
     net
@@ -303,6 +333,8 @@
     ..
     openssl
     ..
+    os
+    ..
     pcap
     ..
     protocols
@@ -327,9 +359,19 @@
         mac_partition
         ..
     ..
+    servers
+    ..
     ssp
     ..
     sys
+        mach
+            ipc
+            ..
+            device
+            ..
+        ..
+        mach_debug
+        ..
     ..
     teken
     ..
@@ -339,8 +381,12 @@
         ufs
         ..
     ..
+    uuid
+    ..
     vm
     ..
     xlocale
+    ..
+    xpc
     ..
 ..

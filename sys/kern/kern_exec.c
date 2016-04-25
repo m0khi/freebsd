@@ -30,6 +30,7 @@ __FBSDID("$FreeBSD$");
 #include "opt_capsicum.h"
 #include "opt_hwpmc_hooks.h"
 #include "opt_ktrace.h"
+#include "opt_thrworkq.h"
 #include "opt_vm.h"
 
 #include <sys/param.h>
@@ -63,6 +64,9 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysent.h>
 #include <sys/shm.h>
 #include <sys/sysctl.h>
+#ifdef THRWORKQ
+#include <sys/thrworkq.h>
+#endif
 #include <sys/vnode.h>
 #include <sys/stat.h>
 #ifdef KTRACE
@@ -210,6 +214,7 @@ sys_execve(struct thread *td, struct execve_args *uap)
 	int error;
 
 	error = pre_execve(td, &oldvmspace);
+
 	if (error != 0)
 		return (error);
 	error = exec_copyin_args(&args, uap->fname, UIO_USERSPACE,
@@ -293,6 +298,10 @@ pre_execve(struct thread *td, struct vmspace **oldvmspace)
 			error = ERESTART;
 		PROC_UNLOCK(p);
 	}
+#ifdef THRWORKQ
+	if (error == 0)
+		thrworkq_exit(p);
+#endif
 	KASSERT(error != 0 || (td->td_pflags & TDP_EXECVMSPC) == 0,
 	    ("nested execve"));
 	*oldvmspace = p->p_vmspace;
@@ -985,8 +994,7 @@ exec_map_first_page(imgp)
 				if (vm_page_tryxbusy(ma[i]))
 					break;
 			} else {
-				ma[i] = vm_page_alloc(object, i,
-				    VM_ALLOC_NORMAL | VM_ALLOC_IFNOTCACHED);
+				ma[i] = vm_page_alloc(object, i, VM_ALLOC_NORMAL);
 				if (ma[i] == NULL)
 					break;
 			}
@@ -1570,8 +1578,6 @@ exec_register(execsw_arg)
 		for (es = execsw; *es; es++)
 			count++;
 	newexecsw = malloc(count * sizeof(*es), M_TEMP, M_WAITOK);
-	if (newexecsw == NULL)
-		return (ENOMEM);
 	xs = newexecsw;
 	if (execsw)
 		for (es = execsw; *es; es++)
@@ -1604,8 +1610,6 @@ exec_unregister(execsw_arg)
 		if (*es != execsw_arg)
 			count++;
 	newexecsw = malloc(count * sizeof(*es), M_TEMP, M_WAITOK);
-	if (newexecsw == NULL)
-		return (ENOMEM);
 	xs = newexecsw;
 	for (es = execsw; *es; es++)
 		if (*es != execsw_arg)

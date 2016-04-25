@@ -695,7 +695,6 @@ extern int __isthreaded;
  * Global variables for the pthread kernel.
  */
 
-extern char		*_usrstack __hidden;
 extern struct pthread	*_thr_initial __hidden;
 
 /* For debugger */
@@ -725,12 +724,9 @@ extern struct pthread_cond_attr _pthread_condattr_default __hidden;
 
 extern struct pthread_prio _thr_priorities[] __hidden;
 
-extern pid_t	_thr_pid __hidden;
 extern int	_thr_is_smp __hidden;
 
 extern size_t	_thr_guard_default __hidden;
-extern size_t	_thr_stack_default __hidden;
-extern size_t	_thr_stack_initial __hidden;
 extern int	_thr_page_size __hidden;
 extern int	_thr_spinloops __hidden;
 extern int	_thr_yieldloops __hidden;

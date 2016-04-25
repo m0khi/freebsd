@@ -1173,7 +1173,7 @@ aio_qphysio(struct proc *p, struct kaiocb *job)
 	struct cdevsw *csw;
 	struct cdev *dev;
 	struct kaioinfo *ki;
-	int error, ref, unmap, poff;
+	int error, ref, poff;
 	vm_prot_t prot;
 
 	cb = &job->uaiocb;
@@ -1206,12 +1206,13 @@ aio_qphysio(struct proc *p, struct kaiocb *job)
 
 	ki = p->p_aioinfo;
 	poff = (vm_offset_t)cb->aio_buf & PAGE_MASK;
-	unmap = ((dev->si_flags & SI_UNMAPPED) && unmapped_buf_allowed);
-	if (unmap) {
+	if ((dev->si_flags & SI_UNMAPPED) && unmapped_buf_allowed) {
 		if (cb->aio_nbytes > MAXPHYS) {
 			error = -1;
 			goto unref;
 		}
+
+		pbuf = NULL;
 	} else {
 		if (cb->aio_nbytes > MAXPHYS - poff) {
 			error = -1;
@@ -1221,18 +1222,14 @@ aio_qphysio(struct proc *p, struct kaiocb *job)
 			error = -1;
 			goto unref;
 		}
-	}
-	job->bp = bp = g_alloc_bio();
-	if (!unmap) {
+
 		job->pbuf = pbuf = (struct buf *)getpbuf(NULL);
 		BUF_KERNPROC(pbuf);
-	} else
-		pbuf = NULL;
-
-	AIO_LOCK(ki);
-	if (!unmap)
+		AIO_LOCK(ki);
 		ki->kaio_buffer_count++;
-	AIO_UNLOCK(ki);
+		AIO_UNLOCK(ki);
+	}
+	job->bp = bp = g_alloc_bio();
 
 	bp->bio_length = cb->aio_nbytes;
 	bp->bio_bcount = cb->aio_nbytes;
@@ -1246,17 +1243,18 @@ aio_qphysio(struct proc *p, struct kaiocb *job)
 	prot = VM_PROT_READ;
 	if (cb->aio_lio_opcode == LIO_READ)
 		prot |= VM_PROT_WRITE;	/* Less backwards than it looks */
-	if ((job->npages = vm_fault_quick_hold_pages(
-	    &curproc->p_vmspace->vm_map,
+	job->npages = vm_fault_quick_hold_pages(&curproc->p_vmspace->vm_map,
 	    (vm_offset_t)bp->bio_data, bp->bio_length, prot, job->pages,
-	    sizeof(job->pages)/sizeof(job->pages[0]))) < 0) {
+	    nitems(job->pages));
+	if (job->npages < 0) {
 		error = EFAULT;
 		goto doerror;
 	}
-	if (!unmap) {
+	if (pbuf != NULL) {
 		pmap_qenter((vm_offset_t)pbuf->b_data,
 		    job->pages, job->npages);
 		bp->bio_data = pbuf->b_data + poff;
+		atomic_add_int(&num_buf_aio, 1);
 	} else {
 		bp->bio_ma = job->pages;
 		bp->bio_ma_n = job->npages;
@@ -1265,20 +1263,16 @@ aio_qphysio(struct proc *p, struct kaiocb *job)
 		bp->bio_flags |= BIO_UNMAPPED;
 	}
 
-	if (!unmap)
-		atomic_add_int(&num_buf_aio, 1);
-
 	/* Perform transfer. */
 	csw->d_strategy(bp);
 	dev_relthread(dev, ref);
 	return (0);
 
 doerror:
-	AIO_LOCK(ki);
-	if (!unmap)
+	if (pbuf != NULL) {
+		AIO_LOCK(ki);
 		ki->kaio_buffer_count--;
-	AIO_UNLOCK(ki);
-	if (pbuf) {
+		AIO_UNLOCK(ki);
 		relpbuf(pbuf, NULL);
 		job->pbuf = NULL;
 	}
@@ -1415,7 +1409,7 @@ aio_aqueue(struct thread *td, struct aiocb *ujob, struct aioliojob *lj,
 	struct file *fp;
 	struct kaiocb *job;
 	struct kaioinfo *ki;
-	struct kevent kev;
+	struct kevent64_s kev;
 	int opcode;
 	int error;
 	int fd, kqfd;
@@ -1555,7 +1549,7 @@ aio_aqueue(struct thread *td, struct aiocb *ujob, struct aioliojob *lj,
 	kev.filter = EVFILT_AIO;
 	kev.flags = EV_ADD | EV_ENABLE | EV_FLAG1 | evflags;
 	kev.data = (intptr_t)job;
-	kev.udata = job->uaiocb.aio_sigevent.sigev_value.sival_ptr;
+	kev.udata = (uint64_t)job->uaiocb.aio_sigevent.sigev_value.sival_ptr;
 	error = kqfd_register(kqfd, &kev, td, 1);
 	if (error)
 		goto aqueue_fail;
@@ -2097,7 +2091,7 @@ kern_lio_listio(struct thread *td, int mode, struct aiocb * const *uacb_list,
 	struct aiocb *job;
 	struct kaioinfo *ki;
 	struct aioliojob *lj;
-	struct kevent kev;
+	struct kevent64_s kev;
 	int error;
 	int nerror;
 	int i;
@@ -2132,7 +2126,7 @@ kern_lio_listio(struct thread *td, int mode, struct aiocb * const *uacb_list,
 			kev.ident = (uintptr_t)uacb_list; /* something unique */
 			kev.data = (intptr_t)lj;
 			/* pass user defined sigval data */
-			kev.udata = lj->lioj_signal.sigev_value.sival_ptr;
+			kev.udata = (uint64_t)lj->lioj_signal.sigev_value.sival_ptr;
 			error = kqfd_register(
 			    lj->lioj_signal.sigev_notify_kqueue, &kev, td, 1);
 			if (error) {
@@ -2476,7 +2470,7 @@ filt_aiodetach(struct knote *kn)
 	struct knlist *knl;
 
 	knl = &kn->kn_ptr.p_aio->klist;
-	knl->kl_lock(knl->kl_lockarg);
+	knl->kl_lock(knl->kl_lockarg, __FILE__, __LINE__);
 	if (!knlist_empty(knl))
 		knlist_remove(knl, kn, 1);
 	knl->kl_unlock(knl->kl_lockarg);
@@ -2524,7 +2518,7 @@ filt_liodetach(struct knote *kn)
 	struct knlist *knl;
 
 	knl = &kn->kn_ptr.p_lio->klist;
-	knl->kl_lock(knl->kl_lockarg);
+	knl->kl_lock(knl->kl_lockarg, __FILE__, __LINE__);
 	if (!knlist_empty(knl))
 		knlist_remove(knl, kn, 1);
 	knl->kl_unlock(knl->kl_lockarg);

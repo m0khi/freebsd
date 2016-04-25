@@ -124,11 +124,16 @@ int	kern_jail_get(struct thread *td, struct uio *options, int flags);
 int	kern_jail_set(struct thread *td, struct uio *options, int flags);
 int	kern_kevent(struct thread *td, int fd, int nchanges, int nevents,
 	    struct kevent_copyops *k_ops, const struct timespec *timeout);
-int	kern_kevent_anonymous(struct thread *td, int nevents,
-	    struct kevent_copyops *k_ops);
+int	kern_kevent64(struct thread *td, int fd, int nchanges, int nevents,
+	    struct kevent_copyops *k_ops, const struct timespec *timeout);
 int	kern_kevent_fp(struct thread *td, struct file *fp, int nchanges,
 	    int nevents, struct kevent_copyops *k_ops,
 	    const struct timespec *timeout);
+int	kern_kevent_fp64(struct thread *td, struct file *fp, int nchanges,
+	    int nevents, struct kevent_copyops *k_ops,
+	    const struct timespec *timeout);
+int	kern_kevent_anonymous(struct thread *td, int nevents,
+	    struct kevent_copyops *k_ops);
 int	kern_kqueue(struct thread *td, int flags, struct filecaps *fcaps);
 int	kern_kldload(struct thread *td, const char *file, int *fileid);
 int	kern_kldstat(struct thread *td, int fileid, struct kld_file_stat *stat);
@@ -240,6 +245,8 @@ int	kern_ktimer_getoverrun(struct thread *td, int timer_id);
 int	kern_thr_alloc(struct proc *, int pages, struct thread **);
 int	kern_thr_exit(struct thread *td);
 int	kern_thr_new(struct thread *td, struct thr_param *param);
+int	kern_thr_stack(struct proc *p, void **addr, vm_size_t stacksz,
+	    vm_size_t guardsz);
 int	kern_thr_suspend(struct thread *td, struct timespec *tsp);
 int	kern_truncate(struct thread *td, char *path, enum uio_seg pathseg,
 	    off_t length);

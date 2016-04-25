@@ -59,6 +59,7 @@ _LIBRARIES=	\
 		auditd \
 		avl \
 		begemot \
+		BlocksRuntime \
 		bluetooth \
 		bsdxml \
 		bsm \
@@ -85,6 +86,7 @@ _LIBRARIES=	\
 		devinfo \
 		devstat \
 		dialog \
+		dispatch \
 		dpv \
 		dtrace \
 		dwarf \
@@ -113,8 +115,10 @@ _LIBRARIES=	\
 		krb5 \
 		kvm \
 		l \
+		launch \
 		lzma \
 		m \
+		mach \
 		magic \
 		md \
 		memstat \
@@ -128,6 +132,7 @@ _LIBRARIES=	\
 		nv \
 		nvpair \
 		opie \
+		osxsupport \
 		pam \
 		panel \
 		panelw \
@@ -169,6 +174,7 @@ _LIBRARIES=	\
 		wind \
 		wrap \
 		xo \
+		xpc \
 		y \
 		ypclnt \
 		z \
@@ -501,7 +507,9 @@ LIBATF_CDIR=	${OBJTOP}/lib/atf/libatf-c
 LIBATF_CXXDIR=	${OBJTOP}/lib/atf/libatf-c++
 LIBALIASDIR=	${OBJTOP}/lib/libalias/libalias
 LIBBLOCKSRUNTIMEDIR=	${OBJTOP}/lib/libblocksruntime
+LIBBLOCKSRUNTIME?=	${OBJTOP}/lib/libBlocksRuntime.a
 LIBBSNMPDIR=	${OBJTOP}/lib/libbsnmp/libbsnmp
+LIBDISPATCH?=	${OBJTOP}/lib/libdispatch.a
 LIBCAP_CASPERDIR=	${OBJTOP}/lib/libcasper/libcasper
 LIBCAP_DNSDIR=	${OBJTOP}/lib/libcasper/services/cap_dns
 LIBCAP_GRPDIR=	${OBJTOP}/lib/libcasper/services/cap_grp
@@ -510,7 +518,11 @@ LIBCAP_RANDOMDIR=	${OBJTOP}/lib/libcasper/services/cap_random
 LIBCAP_SYSCTLDIR=	${OBJTOP}/lib/libcasper/services/cap_sysctl
 LIBBSDXMLDIR=	${OBJTOP}/lib/libexpat
 LIBKVMDIR=	${OBJTOP}/lib/libkvm
+LIBMACH?=	${OBJTOP}/lib/libmach.a
+LIBOSXSUPPORT?=	${OBJTOP}/lib/libosxsupport.a
 LIBPTHREADDIR=	${OBJTOP}/lib/libthr
+LIBLAUNCH?=	${OBJDIR}/lib/liblaunch.a
+LIBXPC?=	${OBJDIR}/lib/libxpc.a
 LIBMDIR=	${OBJTOP}/lib/msun
 LIBFORMDIR=	${OBJTOP}/lib/ncurses/form
 LIBFORMLIBWDIR=	${OBJTOP}/lib/ncurses/formw

@@ -48,9 +48,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/kernel.h>
 #include <sys/malloc.h>
 #include <sys/mutex.h>
-#if MAXMEMDOM > 1
 #include <sys/proc.h>
-#endif
 #include <sys/queue.h>
 #include <sys/rwlock.h>
 #include <sys/sbuf.h>
@@ -67,14 +65,17 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_object.h>
 #include <vm/vm_page.h>
 #include <vm/vm_phys.h>
+#include <vm/vm_pageout.h>
 
 #include <vm/vm_domain.h>
 
 _Static_assert(sizeof(long) * NBBY >= VM_PHYSSEG_MAX,
     "Too many physsegs.");
 
+#ifdef VM_NUMA_ALLOC
 struct mem_affinity *mem_affinity;
 int *mem_locality;
+#endif
 
 int vm_ndomains = 1;
 
@@ -144,7 +145,7 @@ static int sysctl_vm_phys_segs(SYSCTL_HANDLER_ARGS);
 SYSCTL_OID(_vm, OID_AUTO, phys_segs, CTLTYPE_STRING | CTLFLAG_RD,
     NULL, 0, sysctl_vm_phys_segs, "A", "Phys Seg Info");
 
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 static int sysctl_vm_phys_locality(SYSCTL_HANDLER_ARGS);
 SYSCTL_OID(_vm, OID_AUTO, phys_locality, CTLTYPE_STRING | CTLFLAG_RD,
     NULL, 0, sysctl_vm_phys_locality, "A", "Phys Locality Info");
@@ -159,7 +160,7 @@ SYSCTL_INT(_vm, OID_AUTO, ndomains, CTLFLAG_RD,
 static struct mtx vm_default_policy_mtx;
 MTX_SYSINIT(vm_default_policy, &vm_default_policy_mtx, "default policy mutex",
     MTX_DEF);
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 static struct vm_domain_policy vm_default_policy =
     VM_DOMAIN_POLICY_STATIC_INITIALISER(VM_POLICY_FIRST_TOUCH_ROUND_ROBIN, 0);
 #else
@@ -277,7 +278,7 @@ vm_phys_fictitious_cmp(struct vm_phys_fictitious_seg *p1,
 static __inline int
 vm_rr_selectdomain(void)
 {
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 	struct thread *td;
 
 	td = curthread;
@@ -303,13 +304,13 @@ vm_rr_selectdomain(void)
 static void
 vm_policy_iterator_init(struct vm_domain_iterator *vi)
 {
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 	struct vm_domain_policy lcl;
 #endif
 
 	vm_domain_iterator_init(vi);
 
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 	/* Copy out the thread policy */
 	vm_domain_policy_localcopy(&lcl, &curthread->td_vm_dom_policy);
 	if (lcl.p.policy != VM_POLICY_NONE) {
@@ -433,7 +434,7 @@ int
 vm_phys_mem_affinity(int f, int t)
 {
 
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 	if (mem_locality == NULL)
 		return (-1);
 	if (f >= vm_ndomains || t >= vm_ndomains)
@@ -444,7 +445,7 @@ vm_phys_mem_affinity(int f, int t)
 #endif
 }
 
-#if MAXMEMDOM > 1
+#ifdef VM_NUMA_ALLOC
 /*
  * Outputs the VM locality table.
  */
@@ -520,6 +521,7 @@ _vm_phys_create_seg(vm_paddr_t start, vm_paddr_t end, int domain)
 static void
 vm_phys_create_seg(vm_paddr_t start, vm_paddr_t end)
 {
+#ifdef VM_NUMA_ALLOC
 	int i;
 
 	if (mem_affinity == NULL) {
@@ -544,6 +546,9 @@ vm_phys_create_seg(vm_paddr_t start, vm_paddr_t end)
 		    mem_affinity[i].domain);
 		start = mem_affinity[i].end;
 	}
+#else
+	_vm_phys_create_seg(start, end, 0);
+#endif
 }
 
 /*
@@ -1309,7 +1314,7 @@ vm_phys_zero_pages_idle(void)
 	for (;;) {
 		TAILQ_FOREACH_REVERSE(m, &fl[oind].pl, pglist, plinks.q) {
 			for (m_tmp = m; m_tmp < &m[1 << oind]; m_tmp++) {
-				if ((m_tmp->flags & (PG_CACHED | PG_ZERO)) == 0) {
+				if ((m_tmp->flags & PG_ZERO) == 0) {
 					vm_phys_unfree_page(m_tmp);
 					vm_phys_freecnt_adj(m, -1);
 					mtx_unlock(&vm_page_queue_free_mtx);
@@ -1463,9 +1468,9 @@ vm_phys_alloc_seg_contig(struct vm_phys_seg *seg, u_long npages,
 				 */
 				pa = VM_PAGE_TO_PHYS(m_ret);
 				pa_end = pa + size;
-				if (pa >= low && pa_end <= high && (pa &
-				    (alignment - 1)) == 0 && ((pa ^ (pa_end -
-				    1)) & ~(boundary - 1)) == 0)
+				if (pa >= low && pa_end <= high &&
+				    (pa & (alignment - 1)) == 0 &&
+				    rounddown2(pa ^ (pa_end - 1), boundary) == 0)
 					goto done;
 			}
 		}
@@ -1486,6 +1491,85 @@ done:
 		vm_phys_free_contig(&m_ret[npages], npages_end - npages);
 	return (m_ret);
 }
+
+/*
+ * Find a range of contiguous free pages that can be easily reclaimed
+ * with the set of properties matching those defined by
+ * vm_phys_alloc_contig().
+ */
+vm_page_t
+vm_phys_reclaim_contig(u_long npages, vm_paddr_t low, vm_paddr_t high,
+    u_long alignment, vm_paddr_t boundary, int level)
+{
+	struct vm_freelist *fl;
+	struct vm_phys_seg *seg;
+	vm_paddr_t pa, size;
+	vm_page_t m_ret, m_min;
+	u_long min_workpages, workpages;
+	int dom, domain, flind, oind, order, pind;
+
+	mtx_assert(&vm_page_queue_free_mtx, MA_OWNED);
+	size = npages << PAGE_SHIFT;
+	KASSERT(size != 0,
+	    ("vm_phys_reclaim_contig: size must not be 0"));
+	KASSERT((alignment & (alignment - 1)) == 0,
+	    ("vm_phys_reclaim_contig: alignment must be a power of 2"));
+	KASSERT((boundary & (boundary - 1)) == 0,
+	    ("vm_phys_reclaim_contig: boundary must be a power of 2"));
+	/* Compute the queue that is the best fit for npages. */
+	for (order = 0; (1 << order) < npages; order++);
+	order--;
+	m_min = NULL;
+	workpages = 0;
+	dom = 0;
+restartdom:
+	domain = vm_rr_selectdomain();
+	for (flind = 0; flind < vm_nfreelists; flind++) {
+		for (oind = min(order, VM_NFREEORDER-1); oind >= 0; oind--) {
+			for (pind = 0; pind < VM_NFREEPOOL; pind++) {
+				fl = &vm_phys_free_queues[domain][flind][pind][0];
+				TAILQ_FOREACH(m_ret, &fl[oind].pl, plinks.q) {
+					/*
+					 * A free list may contain physical pages
+					 * from one or more segments.
+					 */
+					seg = &vm_phys_segs[m_ret->segind];
+					if (seg->start > high ||
+					    low >= seg->end)
+						continue;
+
+					/*
+					 * Determine if the blocks are within the given range,
+					 * satisfy the given alignment, and do not cross the
+					 * given boundary.
+					 */
+					pa = VM_PAGE_TO_PHYS(m_ret);
+					if (pa < low ||
+					    pa + size > high ||
+					    pa + size > seg->end ||
+					    (pa & (alignment - 1)) != 0 ||
+					    ((pa ^ (pa + size - 1)) & ~(boundary - 1)) != 0)
+						continue;
+
+					workpages = vm_pageout_count_pages(&m_ret[1 << oind],
+					    npages - (1 << oind), level);
+					/* Don't scan further if we found an easy match. */
+					if (workpages == 0)
+						return (m_ret);
+					if (workpages != -1 &&
+					    (m_min == NULL || workpages < min_workpages)) {
+						m_min = m_ret;
+						min_workpages = workpages;
+					}
+				}
+			}
+		}
+	}
+	if (++dom < vm_ndomains)
+		goto restartdom;
+	return (m_min);
+}
+
 
 #ifdef DDB
 /*

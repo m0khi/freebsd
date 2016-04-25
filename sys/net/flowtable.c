@@ -700,8 +700,7 @@ flowtable_lookup(sa_family_t sa, struct mbuf *m, struct route *ro)
 		ro->ro_prepend = lle->r_linkdata;
 		ro->ro_plen = lle->r_hdrlen;
 		ro->ro_flags |= RT_MAY_LOOP;
-		if (lle->la_flags & LLE_IFADDR)
-			ro->ro_flags |= RT_L2_ME;
+		ro->ro_flags |= (!!(lle->la_flags & LLE_IFADDR)) << RT_L2_ME_BIT;
 	}
 
 	return (0);

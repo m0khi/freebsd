@@ -1,13 +1,14 @@
 #	@(#)Makefile	8.1 (Berkeley) 6/5/93
 # $FreeBSD$
 
+PACKAGE=runtime-manuals
+
 MAN=	crash.8 \
 	diskless.8 \
 	intro.8 \
 	nanobsd.8 \
 	picobsd.8 \
 	rc.8 \
-	rc.sendmail.8 \
 	rc.subr.8 \
 	rescue.8 \
 	${_uefi.8} \

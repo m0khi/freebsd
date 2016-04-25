@@ -67,13 +67,7 @@ enum {
 
 struct bounce_zone;
 
-struct bus_dma_tag {
-	struct bus_dma_tag_common common;
-	int			map_count;
-	int			bounce_flags;
-	bus_dma_segment_t	*segments;
-	struct bounce_zone	*bounce_zone;
-};
+extern struct bus_dma_impl bus_dma_nobounce_kernel_impl;
 
 struct bounce_page {
 	vm_offset_t	vaddr;		/* kva of bounce buffer */
@@ -180,6 +174,9 @@ bounce_bus_dma_tag_create(bus_dma_tag_t parent, bus_size_t alignment,
 	if (newtag->common.lowaddr < ptoa((vm_paddr_t)Maxmem) ||
 	    newtag->common.alignment > 1)
 		newtag->bounce_flags |= BUS_DMA_COULD_BOUNCE;
+
+	if ((flags & BUS_DMA_KERNEL) && !(newtag->bounce_flags & BUS_DMA_COULD_BOUNCE))
+		newtag->common.impl = &bus_dma_nobounce_kernel_impl;
 
 	if (((newtag->bounce_flags & BUS_DMA_COULD_BOUNCE) != 0) &&
 	    (flags & BUS_DMA_ALLOCNOW) != 0) {
@@ -430,7 +427,7 @@ bounce_bus_dmamem_alloc(bus_dma_tag_t dmat, void** vaddr, int flags,
 		    __func__, dmat, dmat->common.flags, ENOMEM);
 		return (ENOMEM);
 	} else if (vtophys(*vaddr) & (dmat->common.alignment - 1)) {
-		printf("bus_dmamem_alloc failed to align memory properly.\n");
+		printf("bus_dmamem_alloc failed to align memory properly to: %lx.\n", dmat->common.alignment);
 	}
 	CTR4(KTR_BUSDMA, "%s: tag %p tag flags 0x%x error %d",
 	    __func__, dmat, dmat->common.flags, 0);
@@ -476,7 +473,8 @@ _bus_dmamap_count_phys(bus_dma_tag_t dmat, bus_dmamap_t map, vm_paddr_t buf,
 		while (buflen != 0) {
 			sgsize = MIN(buflen, dmat->common.maxsegsz);
 			if (bus_dma_run_filter(&dmat->common, curaddr)) {
-				sgsize = MIN(PAGE_SIZE, sgsize);
+				sgsize = MIN(sgsize,
+				    PAGE_SIZE - (curaddr & PAGE_MASK));
 				map->pagesneeded++;
 			}
 			curaddr += sgsize;
@@ -516,7 +514,8 @@ _bus_dmamap_count_pages(bus_dma_tag_t dmat, bus_dmamap_t map, pmap_t pmap,
 			else
 				paddr = pmap_extract(pmap, vaddr);
 			if (bus_dma_run_filter(&dmat->common, paddr) != 0) {
-				sg_len = PAGE_SIZE;
+				sg_len = roundup2(sg_len,
+				    dmat->common.alignment);
 				map->pagesneeded++;
 			}
 			vaddr += sg_len;
@@ -552,7 +551,9 @@ _bus_dmamap_count_ma(bus_dma_tag_t dmat, bus_dmamap_t map, struct vm_page **ma,
 			max_sgsize = MIN(buflen, dmat->common.maxsegsz);
 			sg_len = MIN(sg_len, max_sgsize);
 			if (bus_dma_run_filter(&dmat->common, paddr) != 0) {
-				sg_len = MIN(PAGE_SIZE, max_sgsize);
+				sg_len = roundup2(sg_len,
+				    dmat->common.alignment);
+				sg_len = MIN(sg_len, max_sgsize);
 				KASSERT((sg_len & (dmat->common.alignment - 1))
 				    == 0, ("Segment size is not aligned"));
 				map->pagesneeded++;
@@ -596,7 +597,7 @@ _bus_dmamap_reserve_pages(bus_dma_tag_t dmat, bus_dmamap_t map, int flags)
  * Add a single contiguous physical range to the segment list.
  */
 static int
-_bus_dmamap_addseg(bus_dma_tag_t dmat, bus_dmamap_t map, bus_addr_t curaddr,
+_bus_dmamap_addseg(bus_dma_tag_t dmat, bus_addr_t curaddr,
     bus_size_t sgsize, bus_dma_segment_t *segs, int *segp)
 {
 	bus_addr_t baddr, bmask;
@@ -638,6 +639,36 @@ _bus_dmamap_addseg(bus_dma_tag_t dmat, bus_dmamap_t map, bus_addr_t curaddr,
 	return (sgsize);
 }
 
+static int
+_bus_dmamap_addseg_noboundary(bus_dma_tag_t dmat, bus_addr_t curaddr,
+    bus_size_t sgsize, bus_dma_segment_t *segs, int *segp)
+{
+	int seg;
+
+	/*
+	 * Insert chunk into a segment, coalescing with
+	 * previous segment if possible.
+	 */
+	seg = *segp;
+	if (seg == -1) {
+		seg = 0;
+		segs[seg].ds_addr = curaddr;
+		segs[seg].ds_len = sgsize;
+	} else {
+		if (curaddr == segs[seg].ds_addr + segs[seg].ds_len &&
+		    (segs[seg].ds_len + sgsize) <= dmat->common.maxsegsz)
+			segs[seg].ds_len += sgsize;
+		else {
+			if (++seg >= dmat->common.nsegments)
+				return (0);
+			segs[seg].ds_addr = curaddr;
+			segs[seg].ds_len = sgsize;
+		}
+	}
+	*segp = seg;
+	return (sgsize);
+}
+
 /*
  * Utility function to load a physical buffer.  segp contains
  * the starting segment on entrace, and the ending segment on exit.
@@ -648,7 +679,7 @@ bounce_bus_dmamap_load_phys(bus_dma_tag_t dmat, bus_dmamap_t map,
     int *segp)
 {
 	bus_size_t sgsize;
-	bus_addr_t curaddr, nextaddr;
+	bus_addr_t curaddr;
 	int error;
 
 	if (map == NULL)
@@ -672,14 +703,11 @@ bounce_bus_dmamap_load_phys(bus_dma_tag_t dmat, bus_dmamap_t map,
 		if (((dmat->bounce_flags & BUS_DMA_COULD_BOUNCE) != 0) &&
 		    map->pagesneeded != 0 &&
 		    bus_dma_run_filter(&dmat->common, curaddr)) {
-			nextaddr = 0;
-			sgsize = MIN(PAGE_SIZE, sgsize);
-			if ((curaddr & PAGE_MASK) + sgsize > PAGE_SIZE)
-				nextaddr = roundup2(curaddr, PAGE_SIZE);
-			curaddr = add_bounce_page(dmat, map, 0, curaddr,
-			    nextaddr, sgsize);
+			sgsize = MIN(sgsize, PAGE_SIZE - (curaddr & PAGE_MASK));
+			curaddr = add_bounce_page(dmat, map, 0, curaddr, 0,
+			    sgsize);
 		}
-		sgsize = _bus_dmamap_addseg(dmat, map, curaddr, sgsize, segs,
+		sgsize = _bus_dmamap_addseg(dmat, curaddr, sgsize, segs,
 		    segp);
 		if (sgsize == 0)
 			break;
@@ -743,14 +771,59 @@ bounce_bus_dmamap_load_buffer(bus_dma_tag_t dmat, bus_dmamap_t map, void *buf,
 		if (((dmat->bounce_flags & BUS_DMA_COULD_BOUNCE) != 0) &&
 		    map->pagesneeded != 0 &&
 		    bus_dma_run_filter(&dmat->common, curaddr)) {
-			sgsize = MIN(PAGE_SIZE, max_sgsize);
+			sgsize = roundup2(sgsize, dmat->common.alignment);
+			sgsize = MIN(sgsize, max_sgsize);
 			curaddr = add_bounce_page(dmat, map, kvaddr, curaddr, 0,
 			    sgsize);
 		} else {
 			sgsize = MIN(sgsize, max_sgsize);
 		}
-		sgsize = _bus_dmamap_addseg(dmat, map, curaddr, sgsize, segs,
+		sgsize = _bus_dmamap_addseg(dmat, curaddr, sgsize, segs,
 		    segp);
+		if (sgsize == 0)
+			break;
+		vaddr += sgsize;
+		buflen -= sgsize;
+	}
+
+	/*
+	 * Did we fit?
+	 */
+	return (buflen != 0 ? EFBIG : 0); /* XXX better return value here? */
+}
+
+/*
+ * Utility function to load a linear buffer.  segp contains
+ * the starting segment on entrace, and the ending segment on exit.
+ */
+static int
+nobounce_bus_dmamap_load_kernel_buffer(bus_dma_tag_t dmat, bus_dmamap_t map __unused, void *buf,
+    bus_size_t buflen, pmap_t pmap __unused, int flags __unused, bus_dma_segment_t *segs,
+    int *segp)
+{
+	bus_size_t sgsize, max_sgsize;
+	bus_addr_t curaddr;
+	vm_offset_t  vaddr;
+
+	if (segs == NULL)
+		segs = dmat->segments;
+	vaddr = (vm_offset_t)buf;
+	while (buflen > 0) {
+		/*
+		 * Get the physical address for this segment.
+		 */
+		curaddr = pmap_kextract(vaddr);
+
+		/*
+		 * Compute the segment size, and adjust counts.
+		 */
+		max_sgsize = MIN(buflen, dmat->common.maxsegsz);
+		sgsize = PAGE_SIZE - ((vm_offset_t)curaddr & PAGE_MASK);
+		sgsize = MIN(sgsize, max_sgsize);
+		if (dmat->common.boundary == 0)
+			sgsize = _bus_dmamap_addseg_noboundary(dmat, curaddr, sgsize, segs, segp);
+		else
+			sgsize = _bus_dmamap_addseg(dmat, curaddr, sgsize, segs, segp);
 		if (sgsize == 0)
 			break;
 		vaddr += sgsize;
@@ -771,6 +844,17 @@ bounce_bus_dmamap_load_ma(bus_dma_tag_t dmat, bus_dmamap_t map,
 	vm_paddr_t paddr, next_paddr;
 	int error, page_index;
 	bus_size_t sgsize, max_sgsize;
+
+	if (dmat->common.flags & BUS_DMA_KEEP_PG_OFFSET) {
+		/*
+		 * If we have to keep the offset of each page this function
+		 * is not suitable, switch back to bus_dmamap_load_ma_triv
+		 * which is going to do the right thing in this case.
+		 */
+		error = bus_dmamap_load_ma_triv(dmat, map, ma, buflen, ma_offs,
+		    flags, segs, segp);
+		return (error);
+	}
 
 	if (map == NULL)
 		map = &nobounce_dmamap;
@@ -798,7 +882,10 @@ bounce_bus_dmamap_load_ma(bus_dma_tag_t dmat, bus_dmamap_t map,
 		if (((dmat->bounce_flags & BUS_DMA_COULD_BOUNCE) != 0) &&
 		    map->pagesneeded != 0 &&
 		    bus_dma_run_filter(&dmat->common, paddr)) {
-			sgsize = MIN(PAGE_SIZE, max_sgsize);
+			sgsize = roundup2(sgsize, dmat->common.alignment);
+			sgsize = MIN(sgsize, max_sgsize);
+			KASSERT((sgsize & (dmat->common.alignment - 1)) == 0,
+			    ("Segment size is not aligned"));
 			/*
 			 * Check if two pages of the user provided buffer
 			 * are used.
@@ -813,8 +900,7 @@ bounce_bus_dmamap_load_ma(bus_dma_tag_t dmat, bus_dmamap_t map,
 		} else {
 			sgsize = MIN(sgsize, max_sgsize);
 		}
-		sgsize = _bus_dmamap_addseg(dmat, map, paddr, sgsize, segs,
-		    segp);
+		sgsize = _bus_dmamap_addseg(dmat, paddr, sgsize, segs, segp);
 		if (sgsize == 0)
 			break;
 		KASSERT(buflen >= sgsize,
@@ -842,16 +928,6 @@ bounce_bus_dmamap_waitok(bus_dma_tag_t dmat, bus_dmamap_t map,
 	map->dmat = dmat;
 	map->callback = callback;
 	map->callback_arg = callback_arg;
-}
-
-static bus_dma_segment_t *
-bounce_bus_dmamap_complete(bus_dma_tag_t dmat, bus_dmamap_t map,
-    bus_dma_segment_t *segs, int nsegs, int error)
-{
-
-	if (segs == NULL)
-		segs = dmat->segments;
-	return (segs);
 }
 
 /*
@@ -1159,6 +1235,13 @@ add_bounce_page(bus_dma_tag_t dmat, bus_dmamap_t map, vm_offset_t vaddr,
 	bz->active_bpages++;
 	mtx_unlock(&bounce_lock);
 
+	if (dmat->common.flags & BUS_DMA_KEEP_PG_OFFSET) {
+		/* Page offset needs to be preserved. */
+		bpage->vaddr |= addr1 & PAGE_MASK;
+		bpage->busaddr |= addr1 & PAGE_MASK;
+		KASSERT(addr2 == 0,
+	("Trying to bounce multiple pages with BUS_DMA_KEEP_PG_OFFSET"));
+	}
 	bpage->datavaddr = vaddr;
 	bpage->datapage[0] = PHYS_TO_VM_PAGE(addr1);
 	KASSERT((addr2 & PAGE_MASK) == 0, ("Second page is not aligned"));
@@ -1178,6 +1261,15 @@ free_bounce_page(bus_dma_tag_t dmat, struct bounce_page *bpage)
 	bz = dmat->bounce_zone;
 	bpage->datavaddr = 0;
 	bpage->datacount = 0;
+	if (dmat->common.flags & BUS_DMA_KEEP_PG_OFFSET) {
+		/*
+		 * Reset the bounce page to start at offset 0.  Other uses
+		 * of this bounce page may need to store a full page of
+		 * data and/or assume it starts on a page boundary.
+		 */
+		bpage->vaddr &= ~PAGE_MASK;
+		bpage->busaddr &= ~PAGE_MASK;
+	}
 
 	mtx_lock(&bounce_lock);
 	STAILQ_INSERT_HEAD(&bz->bounce_page_list, bpage, links);
@@ -1228,7 +1320,23 @@ struct bus_dma_impl bus_dma_bounce_impl = {
 	.load_buffer = bounce_bus_dmamap_load_buffer,
 	.load_ma = bounce_bus_dmamap_load_ma,
 	.map_waitok = bounce_bus_dmamap_waitok,
-	.map_complete = bounce_bus_dmamap_complete,
+	.map_complete = NULL,
+	.map_unload = bounce_bus_dmamap_unload,
+	.map_sync = bounce_bus_dmamap_sync
+};
+
+struct bus_dma_impl bus_dma_nobounce_kernel_impl = {
+	.tag_create = bounce_bus_dma_tag_create,
+	.tag_destroy = bounce_bus_dma_tag_destroy,
+	.map_create = bounce_bus_dmamap_create,
+	.map_destroy = bounce_bus_dmamap_destroy,
+	.mem_alloc = bounce_bus_dmamem_alloc,
+	.mem_free = bounce_bus_dmamem_free,
+	.load_phys = bounce_bus_dmamap_load_phys,
+	.load_buffer = nobounce_bus_dmamap_load_kernel_buffer,
+	.load_ma = bus_dmamap_load_ma_triv,
+	.map_waitok = bounce_bus_dmamap_waitok,
+	.map_complete = NULL,
 	.map_unload = bounce_bus_dmamap_unload,
 	.map_sync = bounce_bus_dmamap_sync
 };

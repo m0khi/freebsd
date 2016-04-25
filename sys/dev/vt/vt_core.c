@@ -709,7 +709,7 @@ vt_machine_kbdevent(int c)
 		/* Suspend machine. */
 		power_pm_suspend(POWER_SLEEP_STATE_SUSPEND);
 		return (1);
-	};
+	}
 
 	return (0);
 }
@@ -899,6 +899,7 @@ vt_processkey(keyboard_t *kbd, struct vt_device *vd, int c)
 				terminal_input_char(vw->vw_terminal, 0x1b);
 			}
 #endif
+
 #if defined(KDB)
 			kdb_alt_break(c, &vd->vd_altbrk);
 #endif

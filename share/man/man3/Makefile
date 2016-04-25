@@ -3,6 +3,8 @@
 
 .include <src.opts.mk>
 
+PACKAGE=runtime-manuals
+
 MAN=		assert.3 \
 		ATOMIC_VAR_INIT.3 \
 		bitstring.3 \
@@ -267,6 +269,7 @@ PTHREAD_MAN=	pthread.3 \
 		pthread_suspend_np.3 \
 		pthread_switch_add_np.3 \
 		pthread_testcancel.3 \
+		pthread_workqueue_np.3 \
 		pthread_yield.3
 
 PTHREAD_MLINKS=	pthread_affinity_np.3 pthread_getaffinity_np.3 \
@@ -327,6 +330,15 @@ PTHREAD_MLINKS+=pthread_switch_add_np.3 pthread_switch_delete_np.3
 PTHREAD_MLINKS+=pthread_testcancel.3 pthread_setcancelstate.3 \
 		pthread_testcancel.3 pthread_setcanceltype.3
 PTHREAD_MLINKS+=pthread_join.3 pthread_timedjoin_np.3
+PTHREAD_MLINKS+=pthread_workqueue_np.3 pthread_workqueue_init_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_create_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_additem_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_attr_init_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_attr_destroy_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_attr_getqueuepriority_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_attr_setqueuepriority_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_attr_getovercommit_np.3 \
+	pthread_workqueue_np.3 pthread_workqueue_attr_setovercommit_np.3
 .endif
 
 .include <bsd.prog.mk>

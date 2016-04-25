@@ -180,6 +180,10 @@ struct td_sched;
 struct thread;
 struct trapframe;
 struct turnstile;
+struct thrworkq;
+struct threadlist;
+
+typedef void (*mi_switchcb_t)(int, struct thread *);
 
 /*
  * XXX: Does this belong in resource.h or resourcevar.h instead?
@@ -250,7 +254,6 @@ struct thread {
 	int		td_pinned;	/* (k) Temporary cpu pin count. */
 	struct ucred	*td_ucred;	/* (k) Reference to credentials. */
 	struct plimit	*td_limit;	/* (k) Resource limits. */
-	u_int		td_estcpu;	/* (t) estimated cpu utilization */
 	int		td_slptick;	/* (t) Time at sleep. */
 	int		td_blktick;	/* (t) Time spent blocked. */
 	int		td_swvoltick;	/* (t) Time at last SW_VOL switch. */
@@ -334,7 +337,11 @@ struct thread {
 	struct proc	*td_rfppwait_p;	/* (k) The vforked child */
 	struct vm_page	**td_ma;	/* (k) uio pages held */
 	int		td_ma_cnt;	/* (k) size of *td_ma */
+	mi_switchcb_t   td_cswitchcb;   /* (k) context switch callback. */
+	struct threadlist *td_threadlist; /* (?) thread workq thread list. */
+	void            *td_reuse_stack;  /* (?) reuse workq thread stack.  */
 	void		*td_emuldata;	/* Emulator state data */
+	void		*td_machdata;	/* (k) mach state. */
 	int		td_lastcpu;	/* (t) Last cpu we were on. */
 	int		td_oncpu;	/* (t) Which cpu we are on. */
 };
@@ -389,7 +396,7 @@ do {									\
 #define	TDF_NEEDRESCHED	0x00010000 /* Thread needs to yield. */
 #define	TDF_NEEDSIGCHK	0x00020000 /* Thread may need signal delivery. */
 #define	TDF_NOLOAD	0x00040000 /* Ignore during load avg calculations. */
-#define	TDF_UNUSED19	0x00080000 /* --available-- */
+#define	TDF_WORKQ	0x00080000 /* a workq thread */
 #define	TDF_THRWAKEUP	0x00100000 /* Libthr thread must not suspend itself. */
 #define	TDF_UNUSED21	0x00200000 /* --available-- */
 #define	TDF_SWAPINREQ	0x00400000 /* Swapin request due to wakeup. */
@@ -452,6 +459,7 @@ do {									\
 #define	TDP_UIOHELD	0x10000000 /* Current uio has pages held in td_ma */
 #define	TDP_FORKING	0x20000000 /* Thread is being created through fork() */
 #define	TDP_EXECVMSPC	0x40000000 /* Execve destroyed old vmspace */
+#define	TDP_UNUSUED32	0x80000000 /* Mach initialization done */
 
 /*
  * Reasons that the current thread can not be run yet.
@@ -623,7 +631,7 @@ struct proc {
 					   after fork. */
 	uint64_t	p_prev_runtime;	/* (c) Resource usage accounting. */
 	struct racct	*p_racct;	/* (b) Resource accounting. */
-	u_char		p_throttled;	/* (c) Flag for racct pcpu throttling */
+	int		p_throttled;	/* (c) Flag for racct pcpu throttling */
 	struct vm_domain_policy p_vm_dom_policy;	/* (c) process default VM domain, or -1 */
 	/*
 	 * An orphan is the child that has beed re-parented to the
@@ -633,6 +641,10 @@ struct proc {
 	 */
 	LIST_ENTRY(proc) p_orphan;	/* (e) List of orphan processes. */
 	LIST_HEAD(, proc) p_orphans;	/* (e) Pointer to list of orphans. */
+	vm_offset_t	p_thrstack;	/* ( ) next addr for thread stack */
+	struct mtx	p_twqlock;	/* (n) thread workqueue lock. */
+	struct thrworkq *p_twq;		/* (^) thread workqueue. */
+	void		*p_machdata;	/* (c) Mach state data. */
 };
 
 #define	p_session	p_pgrp->pg_session
@@ -745,6 +757,9 @@ struct proc {
 #define	SW_VOL		0x0100		/* Voluntary switch. */
 #define	SW_INVOL	0x0200		/* Involuntary switch. */
 #define SW_PREEMPT	0x0400		/* The invol switch is a preemption */
+/* Callback type. */
+#define	SWCB_BLOCK		1	/* Thread is about to block. */
+#define	SWCB_UNBLOCK		2	/* Thread was just unblocked. */
 
 /* How values for thread_single(). */
 #define	SINGLE_NO_EXIT	0

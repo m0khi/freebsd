@@ -1042,7 +1042,6 @@ vop_stdadvise(struct vop_advise_args *ap)
 	struct vnode *vp;
 	struct bufobj *bo;
 	daddr_t startn, endn;
-	off_t start, end;
 	int bsize, error;
 
 	vp = ap->a_vp;
@@ -1070,8 +1069,9 @@ vop_stdadvise(struct vop_advise_args *ap)
 		 * below.
 		 */
 		if (vp->v_object != NULL) {
-			start = trunc_page(ap->a_start);
-			end = round_page(ap->a_end);
+			int start = trunc_page(ap->a_start);
+			int end = round_page(ap->a_end);
+
 			VM_OBJECT_WLOCK(vp->v_object);
 			vm_object_page_noreuse(vp->v_object, OFF_TO_IDX(start),
 			    OFF_TO_IDX(end));

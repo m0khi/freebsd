@@ -1012,6 +1012,9 @@ __END_DECLS
 int	cannot_audit(int);
 
 __BEGIN_DECLS
+
+int audit_set_terminal_host(uint32_t *m);
+
 /*
  * audit_set_terminal_id()
  *

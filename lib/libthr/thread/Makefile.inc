@@ -56,5 +56,6 @@ SRCS+= \
 	thr_suspend_np.c \
 	thr_switch_np.c \
 	thr_symbols.c \
+	thr_workq.c \
 	thr_umtx.c \
 	thr_yield.c

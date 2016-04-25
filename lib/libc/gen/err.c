@@ -40,12 +40,14 @@ __FBSDID("$FreeBSD$");
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "block_abi.h"
 #include "un-namespace.h"
 
 #include "libc_private.h"
 
 static FILE *err_file; /* file to use for error output */
 static void (*err_exit)(int);
+typedef DECLARE_BLOCK(void, err_exit_block_t, int);
 
 /*
  * This is declared to take a `void *' so that the caller is not required
@@ -65,6 +67,17 @@ void
 err_set_exit(void (*ef)(int))
 {
 	err_exit = ef;
+}
+
+/*
+ * Register a block to be executed at error exit.
+ */
+void
+err_set_exit_b(err_exit_block_t block)
+{
+
+	if (_Block_copy != 0)
+		err_exit = (void(*)(int))GET_BLOCK_FUNCTION(_Block_copy(block));
 }
 
 __weak_reference(_err, err);
@@ -96,7 +109,7 @@ errc(int eval, int code, const char *fmt, ...)
 void
 verrc(int eval, int code, const char *fmt, va_list ap)
 {
-	if (err_file == 0)
+	if (err_file == NULL)
 		err_set_file((FILE *)0);
 	fprintf(err_file, "%s: ", _getprogname());
 	if (fmt != NULL) {
@@ -121,7 +134,7 @@ errx(int eval, const char *fmt, ...)
 void
 verrx(int eval, const char *fmt, va_list ap)
 {
-	if (err_file == 0)
+	if (err_file == NULL)
 		err_set_file((FILE *)0);
 	fprintf(err_file, "%s: ", _getprogname());
 	if (fmt != NULL)
@@ -161,7 +174,7 @@ warnc(int code, const char *fmt, ...)
 void
 vwarnc(int code, const char *fmt, va_list ap)
 {
-	if (err_file == 0)
+	if (err_file == NULL)
 		err_set_file((FILE *)0);
 	fprintf(err_file, "%s: ", _getprogname());
 	if (fmt != NULL) {
@@ -183,7 +196,7 @@ warnx(const char *fmt, ...)
 void
 vwarnx(const char *fmt, va_list ap)
 {
-	if (err_file == 0)
+	if (err_file == NULL)
 		err_set_file((FILE *)0);
 	fprintf(err_file, "%s: ", _getprogname());
 	if (fmt != NULL)

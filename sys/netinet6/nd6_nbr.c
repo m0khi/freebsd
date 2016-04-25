@@ -754,7 +754,6 @@ nd6_na_input(struct mbuf *m, int off, int icmp6len)
 		if (lltable_calc_llheader(ifp, AF_INET6, lladdr,
 		    linkhdr, &linkhdrsize, &lladdr_off) != 0)
 			return;
-
 		if (lltable_try_set_entry_addr(ifp, ln, linkhdr, linkhdrsize,
 		    lladdr_off) == 0) {
 			ln = NULL;

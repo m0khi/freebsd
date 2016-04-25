@@ -581,7 +581,6 @@ fill_vmmeter(struct vmmeter *vmmp)
 		GET_VM_STATS(vm, v_active_count);
 		GET_VM_STATS(vm, v_inactive_target);
 		GET_VM_STATS(vm, v_inactive_count);
-		GET_VM_STATS(vm, v_cache_count);
 		GET_VM_STATS(vm, v_pageout_free_min);
 		GET_VM_STATS(vm, v_interrupt_free_min);
 		/*GET_VM_STATS(vm, v_free_severe);*/
@@ -884,7 +883,7 @@ printhdr(int maxid, u_long cpumask)
 {
 	int i, num_shown;
 
-	num_shown = (num_selected < maxshowdevs) ? num_selected : maxshowdevs;
+	num_shown = MIN(num_selected, maxshowdevs);
 	if (hflag) {
 		xo_emit("{T:procs}  {T:memory}       {T:/page%*s}", 19, "");
 	} else {
@@ -1095,8 +1094,6 @@ dosum(void)
 		sum.v_active_count);
 	xo_emit("{:inactive-pages/%9u} {N:pages inactive}\n",
 		sum.v_inactive_count);
-	xo_emit("{:vm-cache/%9u} {N:pages in VM cache}\n",
-		sum.v_cache_count);
 	xo_emit("{:wired-pages/%9u} {N:pages wired down}\n",
 		sum.v_wire_count);
 	xo_emit("{:free-pages/%9u} {N:pages free}\n",

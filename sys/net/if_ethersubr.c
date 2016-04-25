@@ -461,7 +461,12 @@ ether_input_internal(struct ifnet *ifp, struct mbuf *m)
 	}
 	eh = mtod(m, struct ether_header *);
 	etype = ntohs(eh->ether_type);
-	random_harvest_queue(m, sizeof(*m), 2, RANDOM_NET_ETHER);
+#ifdef DIAGNOSTIC
+	if (m->m_pkthdr.rcvif != ifp) {
+		if_printf(ifp, "Warning, frame marked as received on %s\n",
+			m->m_pkthdr.rcvif->if_xname);
+	}
+#endif
 
 	CURVNET_SET_QUIET(ifp->if_vnet);
 
@@ -1075,7 +1080,7 @@ ether_resolvemulti(struct ifnet *ifp, struct sockaddr **llsa,
 		e_addr = LLADDR(sdl);
 		if (!ETHER_IS_MULTICAST(e_addr))
 			return EADDRNOTAVAIL;
-		*llsa = 0;
+		*llsa = NULL;
 		return 0;
 
 #ifdef INET
@@ -1100,7 +1105,7 @@ ether_resolvemulti(struct ifnet *ifp, struct sockaddr **llsa,
 			 * (This is used for multicast routers.)
 			 */
 			ifp->if_flags |= IFF_ALLMULTI;
-			*llsa = 0;
+			*llsa = NULL;
 			return 0;
 		}
 		if (!IN6_IS_ADDR_MULTICAST(&sin6->sin6_addr))

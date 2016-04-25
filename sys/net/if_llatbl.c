@@ -321,7 +321,6 @@ lltable_try_set_entry_addr(struct ifnet *ifp, struct llentry *lle,
 
 	/* Update data */
 	lltable_set_entry_addr(ifp, lle, linkhdr, linkhdrsize, lladdr_off);
-
 	IF_AFDATA_WUNLOCK(ifp);
 
 	LLE_REMREF(lle);

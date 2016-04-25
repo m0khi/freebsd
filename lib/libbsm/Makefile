@@ -2,6 +2,7 @@
 # $FreeBSD$
 #
 
+PACKAGE=	lib${LIB}
 OPENBSMDIR=		${.CURDIR}/../../contrib/openbsm
 _LIBBSMDIR=		${OPENBSMDIR}/libbsm
 
@@ -31,7 +32,7 @@ SRCS=	bsm_audit.c							\
 #
 # Must use BSM include files from within the contrib area, not the system.
 #
-CFLAGS+=	-I${OPENBSMDIR} -I${_LIBBSMDIR}
+CFLAGS+=	-I${OPENBSMDIR} -I${LIBBSMDIR} -I${.CURDIR}/../../sys
 
 WARNS?=		1
 

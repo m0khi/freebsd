@@ -54,6 +54,10 @@ TARGET_ARCH=	${TARGET}
 IMAKE=		${MAKE} TARGET_ARCH=${TARGET_ARCH} TARGET=${TARGET}
 DISTDIR=	dist
 
+.if ${TARGET_ARCH} == "amd64"
+XTRADIR= ${.CURDIR}/xtra
+.endif
+
 # Define OSRELEASE by using newvars.sh
 .if !defined(OSRELEASE) || empty(OSRELEASE)
 .for _V in TYPE BRANCH REVISION
@@ -200,7 +204,7 @@ bootonly: packagesystem
 	    MK_GAMES=no MK_GROFF=no \
 	    MK_INSTALLLIB=no MK_LIB32=no MK_MAIL=no \
 	    MK_NCP=no MK_TOOLCHAIN=no MK_PROFILE=no \
-	    MK_INSTALLIB=no MK_RESCUE=no MK_DICT=no \
+	    MK_RESCUE=no MK_DICT=no \
 	    MK_KERNEL_SYMBOLS=no MK_TESTS=no MK_DEBUG_FILES=no
 # Copy manifest only (no distfiles) to get checksums
 	mkdir -p ${.TARGET}/usr/freebsd-dist

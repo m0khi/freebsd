@@ -178,9 +178,6 @@ vm_object_zdtor(void *mem, int size, void *arg)
 	    ("object %p has reservations",
 	    object));
 #endif
-	KASSERT(vm_object_cache_is_empty(object),
-	    ("object %p has cached pages",
-	    object));
 	KASSERT(object->paging_in_progress == 0,
 	    ("object %p paging_in_progress = %d",
 	    object, object->paging_in_progress));
@@ -212,8 +209,6 @@ vm_object_zinit(void *mem, int size, int flags)
 	object->paging_in_progress = 0;
 	object->resident_page_count = 0;
 	object->shadow_count = 0;
-	object->cache.rt_root = 0;
-	object->cache.rt_flags = 0;
 
 	mtx_lock(&vm_object_list_mtx);
 	TAILQ_INSERT_TAIL(&vm_object_list, object, object_list);
@@ -788,8 +783,6 @@ vm_object_terminate(vm_object_t object)
 	if (__predict_false(!LIST_EMPTY(&object->rvq)))
 		vm_reserv_break_all(object);
 #endif
-	if (__predict_false(!vm_object_cache_is_empty(object)))
-		vm_page_cache_free(object, 0, 0);
 
 	KASSERT(object->cred == NULL || object->type == OBJT_DEFAULT ||
 	    object->type == OBJT_SWAP,
@@ -1131,13 +1124,6 @@ shadowlookup:
 		} else if ((tobject->flags & OBJ_UNMANAGED) != 0)
 			goto unlock_tobject;
 		m = vm_page_lookup(tobject, tpindex);
-		if (m == NULL && advise == MADV_WILLNEED) {
-			/*
-			 * If the page is cached, reactivate it.
-			 */
-			m = vm_page_alloc(tobject, tpindex, VM_ALLOC_IFCACHED |
-			    VM_ALLOC_NOBUSY);
-		}
 		if (m == NULL) {
 			/*
 			 * There may be swap even if there is no backing page
@@ -1367,7 +1353,7 @@ retry:
 			goto retry;
 		}
 
-		/* vm_page_rename() will handle dirty and cache. */
+		/* vm_page_rename() will handle dirty. */
 		if (vm_page_rename(m, new_object, idx)) {
 			VM_OBJECT_WUNLOCK(new_object);
 			VM_OBJECT_WUNLOCK(orig_object);
@@ -1403,18 +1389,6 @@ retry:
 		TAILQ_FOREACH(m, &new_object->memq, listq)
 			vm_page_xunbusy(m);
 
-		/*
-		 * Transfer any cached pages from orig_object to new_object.
-		 * If swap_pager_copy() found swapped out pages within the
-		 * specified range of orig_object, then it changed
-		 * new_object's type to OBJT_SWAP when it transferred those
-		 * pages to new_object.  Otherwise, new_object's type
-		 * should still be OBJT_DEFAULT and orig_object should not
-		 * contain any cached pages within the specified range.
-		 */
-		if (__predict_false(!vm_object_cache_is_empty(orig_object)))
-			vm_page_cache_transfer(orig_object, offidxstart,
-			    new_object);
 	}
 	VM_OBJECT_WUNLOCK(orig_object);
 	VM_OBJECT_WUNLOCK(new_object);
@@ -1590,10 +1564,19 @@ vm_object_collapse_scan(vm_object_t object, int op)
 		if (pp != NULL || vm_pager_has_page(object, new_pindex, NULL,
 			NULL)) {
 			/*
+<<<<<<< HEAD
+			 * Page does not exist in parent, rename the
+			 * page from the backing object to the main object. 
+			 *
+			 * If the page was mapped to a process, it can remain 
+			 * mapped through the rename.
+			 * vm_page_rename() will handle dirty.
+=======
 			 * The page already exists in the parent OR swap exists
 			 * for this location in the parent.  Leave the parent's
 			 * page alone.  Destroy the original page from the
 			 * backing object.
+>>>>>>> master
 			 */
 			if (backing_object->type == OBJT_SWAP)
 				swap_pager_freespace(backing_object, p->pindex,
@@ -1749,12 +1732,6 @@ vm_object_collapse(vm_object_t object)
 				    object,
 				    OFF_TO_IDX(object->backing_object_offset), TRUE);
 
-				/*
-				 * Free any cached pages from backing_object.
-				 */
-				if (__predict_false(
-				    !vm_object_cache_is_empty(backing_object)))
-					vm_page_cache_free(backing_object, 0, 0);
 			}
 			/*
 			 * Object now shadows whatever backing_object did.
@@ -1883,7 +1860,7 @@ vm_object_page_remove(vm_object_t object, vm_pindex_t start, vm_pindex_t end,
 	    (options & (OBJPR_CLEANONLY | OBJPR_NOTMAPPED)) == OBJPR_NOTMAPPED,
 	    ("vm_object_page_remove: illegal options for object %p", object));
 	if (object->resident_page_count == 0)
-		goto skipmemq;
+		return;
 	vm_object_pip_add(object, 1);
 again:
 	p = vm_page_find_least(object, start);
@@ -1940,9 +1917,6 @@ next:
 		vm_page_unlock(p);
 	}
 	vm_object_pip_wakeup(object);
-skipmemq:
-	if (__predict_false(!vm_object_cache_is_empty(object)))
-		vm_page_cache_free(object, start, end);
 }
 
 /*

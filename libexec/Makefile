@@ -8,7 +8,8 @@ SUBDIR=	${_atf} \
 	${_comsat} \
 	${_dma} \
 	getty \
-	${_mail.local} \
+	${_hyperv} \
+	launchproxy \
 	${_makewhatis.local} \
 	${_mknetid} \
 	${_pppoed} \
@@ -22,7 +23,6 @@ SUBDIR=	${_atf} \
 	${_rshd} \
 	${_rtld-elf} \
 	save-entropy \
-	${_smrsh} \
 	${_telnetd} \
 	${_tests} \
 	${_tftp-proxy} \
@@ -77,11 +77,6 @@ SUBDIR+=	rbootd
 .if ${MK_RCMDS} != "no"
 _rlogind=	rlogind
 _rshd=		rshd
-.endif
-
-.if ${MK_SENDMAIL} != "no"
-_mail.local=	mail.local
-_smrsh=		smrsh
 .endif
 
 .if ${MK_MAN_UTILS} != "no"

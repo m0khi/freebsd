@@ -24,9 +24,6 @@ _BSD.lib32.dist=	BSD.lib32.dist
 .if ${MK_LIBSOFT} != "no"
 _BSD.libsoft.dist=	BSD.libsoft.dist
 .endif
-.if ${MK_SENDMAIL} != "no"
-_BSD.sendmail.dist=	BSD.sendmail.dist
-.endif
 .if ${MK_TESTS} != "no"
 _BSD.tests.dist=	BSD.tests.dist
 .endif

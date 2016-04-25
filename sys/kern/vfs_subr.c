@@ -109,7 +109,7 @@ static void	v_incr_devcount(struct vnode *);
 static void	v_decr_devcount(struct vnode *);
 static void	vnlru_free(int);
 static void	vgonel(struct vnode *);
-static void	vfs_knllock(void *arg);
+static void	vfs_knllock(void *arg, char *file, int line);
 static void	vfs_knlunlock(void *arg);
 static void	vfs_knl_assert_locked(void *arg);
 static void	vfs_knl_assert_unlocked(void *arg);
@@ -4822,11 +4822,11 @@ static struct filterops vfsvnode_filtops = {
 };
 
 static void
-vfs_knllock(void *arg)
+vfs_knllock(void *arg, char *file , int line)
 {
 	struct vnode *vp = arg;
 
-	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
+	_vn_lock(vp, LK_EXCLUSIVE | LK_RETRY, file, line);
 }
 
 static void

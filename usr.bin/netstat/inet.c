@@ -120,7 +120,7 @@ pcblist_sysctl(int proto, const char *name, char **bufp, int istcp __unused)
 			xo_warn("sysctl: %s", mibvar);
 		return (0);
 	}
-	if ((buf = malloc(len)) == 0) {
+	if ((buf = malloc(len)) == NULL) {
 		xo_warnx("malloc %lu bytes", (u_long)len);
 		return (0);
 	}
@@ -207,7 +207,7 @@ pcblist_kvm(u_long off, char **bufp, int istcp)
 		len = 2 * sizeof(xig) +
 		    (pcbinfo.ipi_count + pcbinfo.ipi_count / 8) *
 		    sizeof(struct xinpcb);
-	if ((buf = malloc(len)) == 0) {
+	if ((buf = malloc(len)) == NULL) {
 		xo_warnx("malloc %lu bytes", (u_long)len);
 		return (0);
 	}
@@ -309,6 +309,7 @@ protopr(u_long off, const char *name, int af1, int proto)
 	static int first = 1;
 	char *buf;
 	const char *vchar;
+	char *algo;
 	struct tcpcb *tp = NULL;
 	struct inpcb *inp;
 	struct xinpgen *xig, *oxig;
@@ -359,10 +360,12 @@ protopr(u_long off, const char *name, int af1, int proto)
 			tp = &((struct xtcpcb *)xig)->xt_tp;
 			inp = &((struct xtcpcb *)xig)->xt_inp;
 			so = &((struct xtcpcb *)xig)->xt_socket;
+			algo = ((struct xtcpcb *)xig)->xt_cc_name;
 		} else {
 			inp = &((struct xinpcb *)xig)->xi_inp;
 			so = &((struct xinpcb *)xig)->xi_socket;
 			timer = NULL;
+			algo = NULL;
 		}
 
 		/* Ignore sockets for protocols other than the desired one. */
@@ -425,11 +428,11 @@ protopr(u_long off, const char *name, int af1, int proto)
 				    "Proto", "Listen", "Local Address");
 			else if (Tflag)
 				xo_emit((Aflag && !Wflag) ?
-    "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-18.18s} {T:/%s}" :
+    "{T:/%-5.5s} {T:/%-8.8s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-18.18s} {T:/%s}" :
 				    ((!Wflag || af1 == AF_INET) ?
-    "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-22.22s} {T:/%s}" :
-    "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-45.45s} {T:/%s}"),
-				    "Proto", "Rexmit", "OOORcv", "0-win",
+    "{T:/%-5.5s} {T:/%-8.8s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-22.22s} {T:/%s}" :
+    "{T:/%-5.5s} {T:/%-8.8s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-45.45s} {T:/%s}"),
+				"Proto", "CC Alg", "Rexmit", "OOORcv", "0-win",
 				    "Local Address", "Foreign Address");
 			else {
 				xo_emit((Aflag && !Wflag) ?
@@ -486,6 +489,8 @@ protopr(u_long off, const char *name, int af1, int proto)
 			xo_emit("{:protocol/%-3.3s%-2.2s/%s%s} ", "toe", vchar);
 		else
 			xo_emit("{:protocol/%-3.3s%-2.2s/%s%s} ", name, vchar);
+		if (istcp && Tflag)
+			xo_emit("{:cc/%-8.8s} ", algo);
 		if (Lflag) {
 			char buf1[33];
 
@@ -1460,7 +1465,7 @@ inetname(struct in_addr *inp)
 			if (np)
 				cp = np->n_name;
 		}
-		if (cp == 0) {
+		if (cp == NULL) {
 			hp = gethostbyaddr((char *)inp, sizeof (*inp), AF_INET);
 			if (hp) {
 				cp = hp->h_name;

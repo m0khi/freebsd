@@ -216,6 +216,7 @@ SUBDIR=	\
 	mac_seeotheruids \
 	mac_stub \
 	mac_test \
+	mach \
 	malo \
 	mcd \
 	md \
@@ -250,6 +251,7 @@ SUBDIR=	\
 	${_nandfs} \
 	${_nandsim} \
 	${_ncr} \
+	${_nctgpio} \
 	${_ncv} \
 	${_ndis} \
 	netfpga10g \
@@ -495,7 +497,8 @@ _txp=		txp
 .if ${MK_SOURCELESS_UCODE} != "no" && ${MACHINE_CPUARCH} != "arm" && \
 	${MACHINE_ARCH:C/mips(el)?/mips/} != "mips" && \
 	${MACHINE_ARCH} != "powerpc"
-_cxgbe=		cxgbe
+# disable until conversion complete
+#_cxgbe=		cxgbe
 .endif
 
 .if ${MK_ZFS} != "no" || defined(ALL_MODULES)
@@ -553,11 +556,13 @@ _io=		io
 .if ${MK_OFED} != "no" || defined(ALL_MODULES)
 _ipoib=         ipoib
 .endif
-_ix=		ix
-_ixv=		ixv
+# disable until conversion complete
+#_ix=		ix
+#_ixv=		ixv
 _linprocfs=	linprocfs
 _linsysfs=	linsysfs
 _linux=		linux
+_nctgpio=	nctgpio
 _ndis=		ndis
 _pccard=	pccard
 .if ${MK_OFED} != "no" || defined(ALL_MODULES)

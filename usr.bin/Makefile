@@ -12,6 +12,7 @@
 SUBDIR=	alias \
 	apply \
 	asa \
+	aslutil \
 	awk \
 	banner \
 	basename \
@@ -90,8 +91,10 @@ SUBDIR=	alias \
 	lsvfs \
 	lzmainfo \
 	m4 \
+	${_mach_tests} \
 	mandoc \
 	mesg \
+	migcom \
 	minigzip \
 	ministat \
 	mkdep \
@@ -109,6 +112,7 @@ SUBDIR=	alias \
 	nl \
 	numactl \
 	nohup \
+	notifyutil \
 	opieinfo \
 	opiekey \
 	opiepasswd \
@@ -125,6 +129,7 @@ SUBDIR=	alias \
 	protect \
 	rctl \
 	renice \
+	resizewin \
 	rev \
 	revoke \
 	rpcinfo \
@@ -184,6 +189,8 @@ SUBDIR=	alias \
 	xargs \
 	xinstall \
 	xo \
+	${_xlint} \
+	${_xstr} \
 	xz \
 	xzdec \
 	yes
@@ -251,9 +258,12 @@ SUBDIR.${MK_RCMDS}+=	rlogin
 SUBDIR.${MK_RCMDS}+=	rsh
 SUBDIR.${MK_RCMDS}+=	ruptime
 SUBDIR.${MK_RCMDS}+=	rwho
-SUBDIR.${MK_SENDMAIL}+=	vacation
 SUBDIR.${MK_TALK}+=	talk
 SUBDIR.${MK_TELNET}+=	telnet
+.if ${MACHINE_CPUARCH} == "amd64"
+#_xpc_tests=     xpc-tests
+_mach_tests=    mach-tests
+.endif
 SUBDIR.${MK_TESTS}+=	tests
 SUBDIR.${MK_TEXTPROC}+=	checknr
 SUBDIR.${MK_TEXTPROC}+=	colcrt

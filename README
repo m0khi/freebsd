@@ -1,3 +1,90 @@
+This is the darwin-support branch. It adds support for a subset of the mach APIs
+to enable FreeBSD to run some of the OSX daemons.
+
+It is currently only supported as a module to workaround the limited typeid space (15 bits) of
+dtrace.
+
+To enable booting launchd, add the following lines /boot/loader.conf:
+##############################################################
+###  Darwin Kernel settings  ########################################
+##############################################################
+
+init_path="/sbin/launchd"
+mach_load="YES"
+
+
+
+If there are problems in mach that prevent the system from booting completely you
+can disable launchd by dropping to the loader prompt (3) and typing:
+set init_path=/sbin/init
+
+If you disable launchd you will need to start devd by hand
+
+Immediate issues:
+migcom is building during bootstrap but includes target headers - it needs to be
+refactored to not include any special headers and only use self-contained defines
+
+
+Unsupported OSX / Mach functionality:
+ - updating the audit token when setuid/setgid/ etc are called
+ - memory object creation (used in parts of libdispatch)
+ - voucher ports (used only by most recent parts of libdispatch)
+ - BSM audit functionality for mach sessions
+
+
+Missing mach features ordered by version of launchd by which they'll be supported:
+
+v1:
+Support:
+- MACH_SEND_NOTIFY
+
+kevent flags needed by (at least) libdispatch:
+- EVFILT_VM
+	- NOTE_VM_PRESSURE
+	- NOTE_VM_ERROR
+
+per-user & per-session launchds (xpc domain system in domain.defs)
+ - The audit session system calls: audit_session_self, audit_session_join,
+   and audit_session_port
+
+
+extended posix_spawnattr calls in support/posix_spawn.c are not expected
+to actually work yet, among others:
+- posix_spawnattr_setbinpref_np
+- posix_spawnattr_getbinpref_np
+
+proc_setpcontrol
+proc_get_dirty
+proc_set_dirty
+proc_track_dirty
+
+
+v2 or later:
+
+- AF_SYSTEM domain sockets and the event protocols
+
+- XPC_JETSAM_BANDs (handle memory pressure)
+
+I/O priority setting functionality - system call:
+__iopolicysys supports:
+	- getiopolicy_np
+	- setiopolicy_np
+
+
+- except NOTE_EXIT_MEMORY of questionable relevance
+#define	NOTE_EXIT_DETAIL	0x02000000	/* provide details on reasons for exit */
+/*
+ * If NOTE_EXIT_DETAIL is present, these bits indicate specific reasons for exiting.
+ */
+#define NOTE_EXIT_DETAIL_MASK		0x00070000
+#define	NOTE_EXIT_DECRYPTFAIL		0x00010000 
+#define	NOTE_EXIT_MEMORY		0x00020000
+#define NOTE_EXIT_CSERROR		0x00040000
+
+
+
+
+
 This is the top level of the FreeBSD source directory.  This file
 was last revised on:
 $FreeBSD$
